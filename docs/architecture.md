@@ -91,7 +91,11 @@ Database bootstrap: `EnsureCreated` when no EF migrations exist; `Migrate` when 
 
 ## Config export security
 
-`ConfigSecretsSanitizer.SanitizeParameters` parses check parameter JSON and **removes** properties named `community`, `password`, or `secret` (case-insensitive) before writing export files.
+`ConfigExportService.ExportAsync` calls `ConfigSecretsSanitizer.SanitizeParameters` for every check’s `ParametersJson`.
+
+`ConfigSecretsSanitizer` parses parameter JSON and **removes** properties named `community`, `password`, or `secret` (case-insensitive). Values are not redacted in place — the keys are dropped so exported files cannot contain SNMP communities or similar secrets.
+
+`ConfigExportServiceTests` guards this wiring so export cannot regress to string-replace-only sanitization.
 
 ## LAN viewer
 

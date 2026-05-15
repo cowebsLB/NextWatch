@@ -2,6 +2,16 @@
 
 All notable changes to NextWatch are documented in this file.
 
+## [0.1.2] - 2026-05-15
+
+### Fixed
+
+- `ConfigExportService` now calls `ConfigSecretsSanitizer` on export (v0.1.1 still used a local rename-only helper, so secrets could leak in exported JSON)
+
+### Added
+
+- `ConfigExportServiceTests` integration test asserting exported config has no secret parameter values
+
 ## [0.1.1] - 2026-05-15
 
 ### Fixed

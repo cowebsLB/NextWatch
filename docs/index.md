@@ -77,7 +77,8 @@ Webhook rules only fire when `WebhookEnabled` is true. The URL uses the rule’s
 Settings → **Export config** / **Import config** (JSON).
 
 - Exports targets, checks, and alert rule flags (not webhook URLs or SNMP secrets).
-- Secret fields in check parameters (`community`, `password`, `secret`) are **removed** from the file — re-enter SNMP communities after import.
+- Secret fields in check parameters (`community`, `password`, `secret`) are **removed** via `ConfigSecretsSanitizer` before write — re-enter SNMP communities after import.
+- If you exported config on **v0.1.1**, re-export after upgrading; that build did not call the sanitizer on export.
 - Import adds targets; it does not merge-delete existing rows (import into a fresh install or after manual cleanup if replacing everything).
 
 ## Diagnostics export

@@ -61,7 +61,7 @@ public sealed class ConfigExportService
                 {
                     Id = c.Id,
                     Type = c.Type.ToString(),
-                    ParametersJson = SanitizeParameters(c.ParametersJson),
+                    ParametersJson = ConfigSecretsSanitizer.SanitizeParameters(c.ParametersJson),
                     IntervalSeconds = c.IntervalSeconds,
                     IsEnabled = c.IsEnabled
                 }).ToList()
@@ -110,11 +110,5 @@ public sealed class ConfigExportService
             }
         }
         await db.SaveChangesAsync(ct);
-    }
-
-    private static string? SanitizeParameters(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return json;
-        return json.Replace("\"community\"", "\"community_redacted\"", StringComparison.OrdinalIgnoreCase);
     }
 }

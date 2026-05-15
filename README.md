@@ -61,7 +61,7 @@ See [docs/index.md](docs/index.md) and [docs/architecture.md](docs/architecture.
 
 ## Versioning
 
-Current version: **0.1.1** (see [`VERSION`](VERSION), [`CHANGELOG.md`](CHANGELOG.md), [versioning guide](docs/versioning.md)).
+Current version: **0.1.2** (see [`VERSION`](VERSION), [`CHANGELOG.md`](CHANGELOG.md), [versioning guide](docs/versioning.md)).
 
 ```powershell
 git tag -l "v*"
