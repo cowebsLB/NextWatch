@@ -29,6 +29,12 @@ public sealed class HttpCheckParams
     /// </summary>
     public int? ExpectedStatusCode { get; set; }
 
+    /// <summary>Optional login for routers/pages that use HTTP Basic authentication (RFC 7617).</summary>
+    public string? Username { get; set; }
+
+    /// <summary>Stored in local SQLite; stripped from config export (same as other <c>password</c> fields).</summary>
+    public string? Password { get; set; }
+
     public string? Keyword { get; set; }
     public bool ValidateCertificate { get; set; } = true;
 }

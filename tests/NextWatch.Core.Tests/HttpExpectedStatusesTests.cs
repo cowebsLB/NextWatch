@@ -6,6 +6,16 @@ namespace NextWatch.Core.Tests;
 public class HttpExpectedStatusesTests
 {
     [Fact]
+    public void Accepts_CombinedRangeAndAuth_Allows302And401And403()
+    {
+        var p = new HttpCheckParams { ExpectedStatuses = "200-399,401,403" };
+        Assert.True(HttpExpectedStatuses.Accepts(p, 302));
+        Assert.True(HttpExpectedStatuses.Accepts(p, 401));
+        Assert.True(HttpExpectedStatuses.Accepts(p, 403));
+        Assert.False(HttpExpectedStatuses.Accepts(p, 500));
+    }
+
+    [Fact]
     public void Accepts_DefaultMissingCodes_Allows200Through399()
     {
         var p = new HttpCheckParams();

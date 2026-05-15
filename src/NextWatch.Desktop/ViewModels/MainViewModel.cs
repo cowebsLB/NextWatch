@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using NextWatch.Core.Checks;
 using NextWatch.Core.Data;
@@ -31,12 +32,14 @@ public partial class MainViewModel : ObservableObject
     private readonly DiagnosticsExportService _diagnostics;
     private readonly InMemoryUiLogBuffer _logBuffer;
     private readonly NextWatchRuntimeOptions _runtime;
+    private readonly ILogger<MainViewModel> _logger;
     private bool _logsWired;
 
     public ObservableCollection<TargetRowViewModel> Targets { get; } = [];
     public ObservableCollection<string> Tags { get; } = [];
     public ObservableCollection<AlertEvent> RecentAlerts { get; } = [];
     public ObservableCollection<UiLogLineVm> LogLines { get; } = [];
+    public ObservableCollection<DetectedIpv4Network> DetectedNetworks { get; } = [];
 
     [ObservableProperty] private string _filterTag = string.Empty;
     [ObservableProperty] private string _windowTitle = "NextWatch";
@@ -61,7 +64,8 @@ public partial class MainViewModel : ObservableObject
         ReportExportService reportExport,
         DiagnosticsExportService diagnostics,
         InMemoryUiLogBuffer logBuffer,
-        NextWatchRuntimeOptions runtime)
+        NextWatchRuntimeOptions runtime,
+        ILogger<MainViewModel> logger)
     {
         _scopeFactory = scopeFactory;
         _notifier = notifier;
@@ -72,13 +76,34 @@ public partial class MainViewModel : ObservableObject
         _diagnostics = diagnostics;
         _logBuffer = logBuffer;
         _runtime = runtime;
+        _logger = logger;
         _notifier.StatusChanged += OnStatusChanged;
+    }
+
+    private void RefreshDetectedNetworksList()
+    {
+        DetectedNetworks.Clear();
+        foreach (var n in DiscoveryService.GetDetectedIpv4Networks())
+            DetectedNetworks.Add(n);
+    }
+
+    [RelayCommand]
+    private void RefreshDetectedNetworks() => RefreshDetectedNetworksList();
+
+    [RelayCommand]
+    private void ApplyDetectedNetwork(string? cidr)
+    {
+        if (string.IsNullOrWhiteSpace(cidr))
+            return;
+        DiscoveryCidr = cidr.Trim();
+        _logger.LogInformation("Discovery CIDR set from detected network list: {Cidr}", DiscoveryCidr);
     }
 
     public async Task InitializeAsync()
     {
         LogFolderPath = NextWatchPaths.GetLogsDirectory(_runtime.PortableDataPath, _runtime.PortableDataDirectory);
         EnsureLogsWired();
+        RefreshDetectedNetworksList();
 
         var v = Assembly.GetExecutingAssembly().GetName().Version;
         WindowTitle = v is null ? "NextWatch" : $"NextWatch {v.Major}.{v.Minor}.{v.Build}";
@@ -181,7 +206,9 @@ public partial class MainViewModel : ObservableObject
             Type = CheckType.Http,
             ParametersJson = CheckParameters.Serialize(new HttpCheckParams
             {
-                Url = NewTargetHost.StartsWith("http") ? NewTargetHost : $"http://{NewTargetHost}"
+                Url = NewTargetHost.StartsWith("http") ? NewTargetHost : $"http://{NewTargetHost}",
+                // SOHO routers often answer HTTP with 401/403 until logged in; still proves the service is up.
+                ExpectedStatuses = "200-399,401,403"
             }),
             IntervalSeconds = 120,
             NextRunUtc = DateTime.UtcNow
@@ -256,6 +283,11 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task RunDiscoveryAsync()
     {
+        if (string.IsNullOrWhiteSpace(DiscoveryCidr))
+            _logger.LogInformation("Discovery requested from UI: all connected IPv4 subnets (CIDR field empty)");
+        else
+            _logger.LogInformation("Discovery requested from UI: manual CIDR {Cidr}", DiscoveryCidr.Trim());
+
         IReadOnlyList<DiscoveredHost> found;
         if (string.IsNullOrWhiteSpace(DiscoveryCidr))
         {

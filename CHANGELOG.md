@@ -2,6 +2,24 @@
 
 All notable changes to NextWatch are documented in this file.
 
+## [0.1.6] - 2026-05-16
+
+### Added
+
+- **Discovery instrumentation:** `ILogger<DiscoveryService>` — subnet/multi-subnet scan started/completed, **Discovery found reachable host** per IP (merged totals for multi-subnet path).
+- **Discovery UI:** list of **detected IPv4 networks** (adapter description + CIDR); click fills **CIDR**; **Refresh detected networks**; `MainViewModel` logs discovery UI requests and CIDR picks.
+- **HTTP Basic auth:** optional `Username` / `Password` on `HttpCheckParams`; `HttpCheckExecutor` sends `Authorization: Basic` when username set (`password` stripped on config export like other secrets).
+
+### Changed
+
+- **HTTP checks created from Add target** default `ExpectedStatuses` **`200-399,401,403`** (gateway-friendly).
+- HTTP DOWN hints for **401/403** distinguish **no credentials** vs **Basic auth rejected**.
+- `DiscoveryService`: `DetectedIpv4Network` + `GetDetectedIpv4Networks()` (CIDR + interface label); `GetConnectedIpv4Networks()` unchanged semantically.
+
+### Tests
+
+- `HttpExpectedStatusesTests.Accepts_CombinedRangeAndAuth_Allows302And401And403`.
+
 ## [0.1.5] - 2026-05-15
 
 ### Added

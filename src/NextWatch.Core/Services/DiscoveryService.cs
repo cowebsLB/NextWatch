@@ -1,27 +1,36 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using Microsoft.Extensions.Logging;
 
 namespace NextWatch.Core.Services;
 
 public sealed record DiscoveredHost(string Address, string? Hostname, bool IsReachable);
 
-public sealed class DiscoveryService
+/// <summary>IPv4 subnet derived from a connected adapter (for Discovery UI).</summary>
+public sealed record DetectedIpv4Network(string Cidr, string InterfaceName)
+{
+    public string DisplayLabel => $"{InterfaceName} — {Cidr}";
+}
+
+public sealed class DiscoveryService(ILogger<DiscoveryService> logger)
 {
     /// <summary>
     /// Enumerates IPv4 subnets for interfaces that are up (Ethernet, Wi‑Fi, VPN, etc.).
     /// Uses each address's prefix length from the OS (typically /24 on home LANs).
     /// Link‑local (169.254.x.x) is skipped.
     /// </summary>
-    public static IReadOnlyList<string> GetConnectedIpv4Networks()
+    public static IReadOnlyList<DetectedIpv4Network> GetDetectedIpv4Networks()
     {
-        var cidrs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var byCidr = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
         {
             if (ni.OperationalStatus != OperationalStatus.Up)
                 continue;
             if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback)
                 continue;
+
+            var label = string.IsNullOrWhiteSpace(ni.Description) ? ni.Name : ni.Description;
 
             foreach (var ua in ni.GetIPProperties().UnicastAddresses)
             {
@@ -32,12 +41,18 @@ public sealed class DiscoveryService
                     continue;
                 if (IsApipa(ua.Address))
                     continue;
-                cidrs.Add(ToNetworkCidr(ua.Address, prefix));
+                var cidr = ToNetworkCidr(ua.Address, prefix);
+                byCidr.TryAdd(cidr, label);
             }
         }
 
-        return cidrs.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+        return byCidr.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(kv => new DetectedIpv4Network(kv.Key, kv.Value))
+            .ToList();
     }
+
+    public static IReadOnlyList<string> GetConnectedIpv4Networks() =>
+        GetDetectedIpv4Networks().Select(x => x.Cidr).ToList();
 
     /// <summary>
     /// Ping‑scans each connected IPv4 subnet (see <see cref="GetConnectedIpv4Networks"/>); merges unique IPs.
@@ -47,7 +62,15 @@ public sealed class DiscoveryService
     {
         var nets = GetConnectedIpv4Networks();
         if (nets.Count == 0)
+        {
+            logger.LogWarning("Discovery multi-subnet scan: no connected IPv4 networks detected (up interfaces)");
             return [];
+        }
+
+        logger.LogInformation(
+            "Discovery scan all connected IPv4 subnets started ({NetworkCount} networks, up to {MaxHosts} hosts each)",
+            nets.Count,
+            maxHostsPerSubnet);
 
         var merged = new Dictionary<string, DiscoveredHost>(StringComparer.OrdinalIgnoreCase);
         foreach (var cidr in nets)
@@ -56,13 +79,19 @@ public sealed class DiscoveryService
                 merged[host.Address] = host;
         }
 
-        return merged.Values
+        var ordered = merged.Values
             .OrderBy(h =>
             {
                 var b = IPAddress.Parse(h.Address).GetAddressBytes();
                 return (b[0], b[1], b[2], b[3]);
             })
             .ToList();
+
+        logger.LogInformation(
+            "Discovery scan all connected IPv4 subnets completed; merged unique reachable hosts: {Count}",
+            ordered.Count);
+
+        return ordered;
     }
 
     private static bool IsApipa(IPAddress ip)
@@ -92,8 +121,9 @@ public sealed class DiscoveryService
 
     public async Task<IReadOnlyList<DiscoveredHost>> ScanSubnetAsync(string cidr, int maxHosts = 254, CancellationToken ct = default)
     {
+        logger.LogInformation("Discovery subnet scan started for {Cidr} (max {MaxHosts} host probes)", cidr, maxHosts);
+
         var (network, prefix) = ParseCidr(cidr);
-        var hosts = new List<DiscoveredHost>();
         var tasks = new List<Task<DiscoveredHost>>();
         var count = Math.Min(maxHosts, (int)Math.Pow(2, 32 - prefix) - 2);
         for (var i = 1; i <= count; i++)
@@ -103,10 +133,20 @@ public sealed class DiscoveryService
         }
 
         var results = await Task.WhenAll(tasks);
-        return results.Where(r => r.IsReachable).ToList();
+        var reachable = results.Where(r => r.IsReachable).ToList();
+
+        foreach (var h in reachable)
+            logger.LogInformation("Discovery found reachable host {Ip} ({Hostname})", h.Address, h.Hostname ?? "—");
+
+        logger.LogInformation(
+            "Discovery subnet scan completed for {Cidr}; reachable hosts: {Count}",
+            cidr,
+            reachable.Count);
+
+        return reachable;
     }
 
-    private static async Task<DiscoveredHost> ProbeHostAsync(IPAddress ip, CancellationToken ct)
+    private async Task<DiscoveredHost> ProbeHostAsync(IPAddress ip, CancellationToken ct)
     {
         try
         {
@@ -125,6 +165,7 @@ public sealed class DiscoveryService
                     // ignore reverse DNS failures
                 }
             }
+
             return new DiscoveredHost(ip.ToString(), hostname, reply.Status == IPStatus.Success);
         }
         catch

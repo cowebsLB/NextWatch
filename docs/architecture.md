@@ -55,7 +55,11 @@ All monitoring logic lives in **Core**. Desktop and LanViewer are thin hosts.
 | `SnmpCheckExecutor` | Snmp |
 | `BandwidthCheckExecutor` | Bandwidth |
 
-Parameters are JSON in `CheckDefinition.ParametersJson` (see `CheckParameters` DTOs).
+Parameters are JSON in `CheckDefinition.ParametersJson` (see `CheckParameters` DTOs). HTTP checks support optional **Basic** credentials (`Username`/`Password`), `ExpectedStatuses`, keyword match, and legacy exact `ExpectedStatusCode`.
+
+## Discovery
+
+`DiscoveryService` ICMP-probes subnet ranges; structured logs at Information for scan lifecycle (“subnet scan started/completed”, each reachable host, merged counts for multi-subnet scans). `GetDetectedIpv4Networks()` exposes **CIDR + NIC description** for the Desktop Discovery tab.
 
 ## Alerts
 

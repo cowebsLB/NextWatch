@@ -72,13 +72,33 @@
                 </DockPanel>
             </TabItem>
             <TabItem Header="Discovery">
-                <StackPanel Margin="12">
-                    <TextBlock Text="Subnet scan pings hosts that reply to ICMP on IPv4. Leave CIDR empty to scan every connected subnet (Wi‑Fi, Ethernet, VPN); or enter e.g. 10.0.0.0/24. Only reachable addresses are listed—many devices block pings." Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <TextBox Width="220" ToolTip="Leave blank for all connected IPv4 interfaces" Text="{Binding DiscoveryCidr, UpdateSourceTrigger=PropertyChanged}"/>
-                        <Button Content="Scan" Margin="8,0,0,0" Command="{Binding RunDiscoveryCommand}" Padding="12,4"/>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="420">
+                    <StackPanel Margin="12">
+                        <TextBlock Text="Subnet scan pings hosts that reply to ICMP on IPv4. Leave CIDR empty to scan every connected subnet (Wi‑Fi, Ethernet, VPN); or pick a row below / type e.g. 192.168.1.0/24. Only reachable addresses are listed—many devices block pings." Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Text="Detected IPv4 networks (from adapters that are up):" Margin="0,12,0,4" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                        <ItemsControl ItemsSource="{Binding DetectedNetworks}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Vertical"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button HorizontalAlignment="Left" Margin="0,3" Padding="10,4"
+                                            Content="{Binding DisplayLabel}"
+                                            Command="{Binding DataContext.ApplyDetectedNetworkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding Cidr}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="Refresh detected networks" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                Command="{Binding RefreshDetectedNetworksCommand}" Padding="10,4"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <TextBox Width="220" ToolTip="Leave blank for all connected IPv4 interfaces" Text="{Binding DiscoveryCidr, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Button Content="Scan" Margin="8,0,0,0" Command="{Binding RunDiscoveryCommand}" Padding="12,4"/>
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
+                </ScrollViewer>
             </TabItem>
             <TabItem Header="Settings">
                 <StackPanel Margin="12">

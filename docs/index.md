@@ -54,7 +54,7 @@ Portable flags are applied at startup and saved to `AppSettings` so Settings and
 | Type | What it does |
 |------|----------------|
 | Ping | ICMP latency and reachability |
-| HTTP/HTTPS | Status code (default **200–399**), optional `ExpectedStatuses` override (e.g. `401`, `200,204`, `301-302`), optional keyword match |
+| HTTP/HTTPS | Status (**200–399** if unset); **new targets from the app** default **`200-399,401,403`** (gateway-friendly); optional `ExpectedStatuses`; optional keyword |
 | TCP | Port open/closed |
 | SSL | Certificate expiry warning |
 | SNMP (v2c) | Device reachability via `sysUpTime` |
@@ -63,11 +63,11 @@ Portable flags are applied at startup and saved to `AppSettings` so Settings and
 
 SNMP v3 is planned after v2c is stable.
 
-For **HTTP** checks, parameters JSON includes `Url`, optional `Keyword`, optional `ExpectedStatuses` (comma-separated codes or ranges, e.g. `401`, `200,204`, `301-302`), and legacy optional `ExpectedStatusCode` (exact match when `ExpectedStatuses` is omitted). If neither expected field is in JSON, any status **200–399** is OK (redirects succeed); **401** stays DOWN unless you set `ExpectedStatuses` (e.g. `"401"`) to accept it.
+For **HTTP** checks, parameters JSON includes `Url`, optional **`Username`** / **`Password`** for **[HTTP Basic](https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication#basic_authentication_scheme)** auth (common on routers—credentials stay in your local DB; **`password` is stripped on config export**, re-enter after import). Also optional `Keyword`, `ExpectedStatuses`, and legacy `ExpectedStatusCode`. If neither expected-status field is in JSON, statuses **200–399** are OK. **New targets added in the app** default `ExpectedStatuses` **`200-399,401,403`**. Routers that use **Digest** auth, HTML login forms, or CSRF tokens may **not** work with Basic auth alone—in those cases rely on ping/TCP or accept **401** as “up” without logging in.
 
 ## Discovery (subnet scan)
 
-Discovery pings IPv4 addresses to find **ICMP‑responsive** hosts—many phones and PCs block pings, so “missing” devices are normal. Leave the CIDR box **empty** and choose **Scan** to probe **every connected IPv4 subnet** the OS reports (Ethernet, Wi‑Fi, VPN, etc.), or enter one network (e.g. `192.168.1.0/24`). Results are not saved as monitored targets until you add them.
+Discovery pings IPv4 addresses to find **ICMP‑responsive** hosts—many phones and PCs block pings, so “missing” devices are normal. The **Discovery** tab lists **detected IPv4 networks** from adapters that are up (click to fill the CIDR box). Leave the CIDR box **empty** and choose **Scan** to probe **every connected subnet**, or scan one network (e.g. `192.168.1.0/24`). Successful scans log **Discovery requested**, **subnet scan started/completed**, **found reachable host**, and merged totals—visible on the **Logs** tab and in `nextwatch-*.log`. Results are not saved as monitored targets until you add them.
 
 ## Alerts
 
