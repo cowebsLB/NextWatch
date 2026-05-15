@@ -2,6 +2,17 @@
 
 All notable changes to NextWatch are documented in this file.
 
+## [0.1.4] - 2026-05-15
+
+### Added
+
+- EF Core `InitialCreate` migration (`src/NextWatch.Core/Data/Migrations/`)
+- `NextWatchDesignTimeDbContextFactory` for `dotnet ef` design-time (`dotnet ef migrations add` against Core)
+
+### Changed
+
+- Database startup uses **`Database.MigrateAsync`** only; legacy SQLite files created with **`EnsureCreated`** are detected (schema present, no migrations history) and **baselined** before migrate so existing user data is preserved
+
 ## [0.1.3] - 2026-05-15
 
 ### Changed

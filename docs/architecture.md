@@ -87,7 +87,9 @@ Parameters are JSON in `CheckDefinition.ParametersJson` (see `CheckParameters` D
 
 Deferred (add via migration when needed): `TargetGroup`, `CheckResultHourly`, `MaintenanceWindow`.
 
-Database bootstrap: `EnsureCreated` when no EF migrations exist; `Migrate` when migration assemblies are present.
+Database bootstrap: on startup, **`MigrateAsync`** applies `Data/Migrations`. Existing installs that used **`EnsureCreated`** (no `__EFMigrationsHistory`) but already have the **`Targets`** table are **baselined** once: history is stamped with `InitialCreate` so migrate does not recreate tables. New installs apply the migration normally.
+
+Design-time: **`NextWatchDesignTimeDbContextFactory`** + `dotnet ef` (`dotnet-tools.json`) — `dotnet ef migrations add` targets `NextWatch.Core`.
 
 ## Config export security
 
