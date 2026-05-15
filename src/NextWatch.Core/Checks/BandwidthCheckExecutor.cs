@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.Versioning;
 using NextWatch.Core.Domain;
 using NextWatch.Core.Domain.Entities;
 using NextWatch.Core.Snmp;
@@ -47,29 +48,45 @@ public sealed class BandwidthCheckExecutor : ICheckExecutor
                 return new CheckExecutionResult(CheckStatus.Ok, sw.Elapsed.TotalMilliseconds, "Collecting baseline");
             }
 
-            var cat = new PerformanceCounterCategory("Network Interface");
-            var instance = string.IsNullOrEmpty(p.InterfaceName)
-                ? cat.GetInstanceNames().FirstOrDefault(n => n != "MS TCP Loopback interface" && !n.Contains("isatap", StringComparison.OrdinalIgnoreCase))
-                : p.InterfaceName;
-            if (instance is null)
-                return new CheckExecutionResult(CheckStatus.Down, sw.Elapsed.TotalMilliseconds, "No NIC found");
+            if (!OperatingSystem.IsWindows())
+            {
+                sw.Stop();
+                return new CheckExecutionResult(CheckStatus.Down, sw.Elapsed.TotalMilliseconds,
+                    "Bandwidth via performance counters requires Windows");
+            }
 
-            using var sent = new PerformanceCounter("Network Interface", "Bytes Sent/sec", instance);
-            using var received = new PerformanceCounter("Network Interface", "Bytes Received/sec", instance);
-            sent.NextValue();
-            received.NextValue();
-            await Task.Delay(500, cancellationToken);
-            var sentBps = sent.NextValue() * 8;
-            var recvBps = received.NextValue() * 8;
-            sw.Stop();
-            return new CheckExecutionResult(CheckStatus.Ok, sw.Elapsed.TotalMilliseconds,
-                $"In: {FormatBps(recvBps)} Out: {FormatBps(sentBps)}");
+            return await CollectViaPerfCountersAsync(p, sw, cancellationToken);
         }
         catch (Exception ex)
         {
             sw.Stop();
             return new CheckExecutionResult(CheckStatus.Down, sw.Elapsed.TotalMilliseconds, ex.Message);
         }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static async Task<CheckExecutionResult> CollectViaPerfCountersAsync(
+        BandwidthCheckParams p,
+        Stopwatch sw,
+        CancellationToken cancellationToken)
+    {
+        var cat = new PerformanceCounterCategory("Network Interface");
+        var instance = string.IsNullOrEmpty(p.InterfaceName)
+            ? cat.GetInstanceNames().FirstOrDefault(n => n != "MS TCP Loopback interface" && !n.Contains("isatap", StringComparison.OrdinalIgnoreCase))
+            : p.InterfaceName;
+        if (instance is null)
+            return new CheckExecutionResult(CheckStatus.Down, sw.Elapsed.TotalMilliseconds, "No NIC found");
+
+        using var sent = new PerformanceCounter("Network Interface", "Bytes Sent/sec", instance);
+        using var received = new PerformanceCounter("Network Interface", "Bytes Received/sec", instance);
+        sent.NextValue();
+        received.NextValue();
+        await Task.Delay(500, cancellationToken);
+        var sentBps = sent.NextValue() * 8;
+        var recvBps = received.NextValue() * 8;
+        sw.Stop();
+        return new CheckExecutionResult(CheckStatus.Ok, sw.Elapsed.TotalMilliseconds,
+            $"In: {FormatBps(recvBps)} Out: {FormatBps(sentBps)}");
     }
 
     private static string FormatBps(double bps) =>

@@ -13,10 +13,16 @@ public sealed class AlertEngine(IAlertSink sink, ILogger<AlertEngine> logger) : 
     {
         var settings = await db.Settings.AsNoTracking().FirstAsync(ct);
         if (IsMuted(settings))
+        {
+            logger.LogDebug("Skipping alert: muted");
             return;
+        }
 
         if (status is not (CheckStatus.Down or CheckStatus.Warn))
+        {
+            logger.LogDebug("Skipping alert: status {Status} does not notify", status);
             return;
+        }
 
         var rules = await db.AlertRules.Where(r => r.CheckId == check.Id || r.CheckId == null).ToListAsync(ct);
         var rule = rules.FirstOrDefault() ?? new AlertRule();
@@ -45,7 +51,10 @@ public sealed class AlertEngine(IAlertSink sink, ILogger<AlertEngine> logger) : 
     {
         var settings = await db.Settings.AsNoTracking().FirstAsync(ct);
         if (IsMuted(settings))
+        {
+            logger.LogDebug("Skipping repeat alerts: muted");
             return;
+        }
 
         var cutoff = DateTime.UtcNow;
         var open = await db.AlertEvents

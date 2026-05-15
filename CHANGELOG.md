@@ -2,6 +2,17 @@
 
 All notable changes to NextWatch are documented in this file.
 
+## [0.1.3] - 2026-05-15
+
+### Changed
+
+- GitHub Actions: `actions/checkout@v6`, `actions/setup-dotnet@v5`, `softprops/action-gh-release@v3` (Node 24–compatible action runtimes)
+
+### Fixed
+
+- Analyzer CA1416: non-SNMP bandwidth checks gate Windows perf counters behind `OperatingSystem.IsWindows()` and `[SupportedOSPlatform("windows")]`
+- Analyzer CS9113: `AlertEngine` uses `ILogger` when skipping muted or non-alerting paths
+
 ## [0.1.2] - 2026-05-15
 
 ### Fixed

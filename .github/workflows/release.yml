@@ -9,13 +9,13 @@ jobs:
   publish:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
       - run: dotnet publish src/NextWatch.Desktop -c Release -r win-x64 --self-contained -p:PublishSingleFile=false -o publish
       - run: Compress-Archive -Path publish/* -DestinationPath NextWatch-win-x64.zip
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: NextWatch-win-x64.zip
         env:
