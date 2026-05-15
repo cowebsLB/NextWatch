@@ -1,0 +1,19 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet restore src/NextWatch.Desktop/NextWatch.Desktop.csproj
+      - run: dotnet build src/NextWatch.Desktop/NextWatch.Desktop.csproj --no-restore -c Release
+      - run: dotnet test tests/NextWatch.Core.Tests/NextWatch.Core.Tests.csproj -c Release --verbosity normal
