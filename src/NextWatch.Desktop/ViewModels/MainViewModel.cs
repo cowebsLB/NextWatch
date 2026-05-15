@@ -53,6 +53,13 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _lanViewerPort = 5080;
     [ObservableProperty] private string _logFolderPath = "";
 
+    [ObservableProperty] private int _totalCount;
+    [ObservableProperty] private int _okCount;
+    [ObservableProperty] private int _warnCount;
+    [ObservableProperty] private int _downCount;
+    [ObservableProperty] private int _unknownCount;
+    [ObservableProperty] private string _versionLabel = "v0.0.0";
+
     public event Action<string>? TrayStatusChanged;
 
     public MainViewModel(
@@ -107,6 +114,7 @@ public partial class MainViewModel : ObservableObject
 
         var v = Assembly.GetExecutingAssembly().GetName().Version;
         WindowTitle = v is null ? "NextWatch" : $"NextWatch {v.Major}.{v.Minor}.{v.Build}";
+        VersionLabel = v is null ? "v0.0.0" : $"v{v.Major}.{v.Minor}.{v.Build}";
         await RefreshAsync();
         var settings = await GetSettingsAsync();
         LanViewerEnabled = settings.LanViewerEnabled;
@@ -172,9 +180,15 @@ public partial class MainViewModel : ObservableObject
         foreach (var a in alerts)
             RecentAlerts.Add(a);
 
-        AggregateStatus = Targets.Any(t => t.Status == CheckStatus.Down) ? "Down"
-            : Targets.Any(t => t.Status == CheckStatus.Warn) ? "Warn"
-            : Targets.Count > 0 ? "Ok" : "Unknown";
+        TotalCount = Targets.Count;
+        OkCount = Targets.Count(t => t.Status == CheckStatus.Ok);
+        WarnCount = Targets.Count(t => t.Status == CheckStatus.Warn);
+        DownCount = Targets.Count(t => t.Status == CheckStatus.Down);
+        UnknownCount = Targets.Count(t => t.Status == CheckStatus.Unknown);
+
+        AggregateStatus = DownCount > 0 ? "Down"
+            : WarnCount > 0 ? "Warn"
+            : TotalCount > 0 ? "Ok" : "Unknown";
         TrayStatusChanged?.Invoke(AggregateStatus);
     }
 

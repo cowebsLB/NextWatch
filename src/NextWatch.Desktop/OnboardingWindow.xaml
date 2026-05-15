@@ -1,16 +1,53 @@
 <Window x:Class="NextWatch.Desktop.OnboardingWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Welcome to NextWatch" Height="320" Width="480"
-        WindowStartupLocation="CenterScreen" Background="#0F1115">
-    <StackPanel Margin="24">
-        <TextBlock Text="Welcome to NextWatch" FontSize="22" FontWeight="SemiBold" Foreground="#E8E8E8"/>
-        <TextBlock Text="Local, simple network monitoring from your tray." Margin="0,8,0,16" Foreground="#AAA" TextWrapping="Wrap"/>
-        <TextBlock Text="First host to monitor" Foreground="#E8E8E8"/>
-        <TextBox x:Name="HostBox" Margin="0,4,0,16" Text="127.0.0.1" Padding="6"/>
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="Skip" Margin="0,0,8,0" Padding="16,6" Click="Skip_Click"/>
-            <Button Content="Start monitoring" Padding="16,6" Click="Start_Click" IsDefault="True"/>
-        </StackPanel>
-    </StackPanel>
+        Title="Welcome to NextWatch"
+        Height="440" Width="540"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="SingleBorderWindow"
+        ResizeMode="NoResize"
+        Background="{StaticResource Brush.Bg}"
+        FontFamily="{StaticResource Font.Sans}"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType"
+        UseLayoutRounding="True">
+
+    <Border Padding="32" Background="{StaticResource Brush.Bg}">
+        <DockPanel LastChildFill="True">
+            <!-- Brand block -->
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,20">
+                <Border Width="40" Height="40" CornerRadius="10"
+                        Background="{StaticResource Brush.Accent}">
+                    <TextBlock Text="N" Foreground="White" FontWeight="Bold" FontSize="20"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="Welcome to NextWatch" Style="{StaticResource Text.Display}"/>
+                    <TextBlock Text="Local, simple network monitoring from your tray."
+                               Style="{StaticResource Text.Muted}" Margin="0,2,0,0"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Action row pinned to bottom -->
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                <Button Content="Skip for now" Style="{StaticResource Btn.Ghost}"
+                        Margin="0,0,8,0" Click="Skip_Click"/>
+                <Button Content="Start monitoring" Style="{StaticResource Btn.Accent}"
+                        IsDefault="True" Click="Start_Click"/>
+            </StackPanel>
+
+            <!-- Body card -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Add your first host" Style="{StaticResource Text.H2}"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,16" TextWrapping="Wrap"
+                               Text="We'll create a Ping check (every 60s) and an HTTP check (every 120s). You can add more from the Targets tab."/>
+                    <TextBlock Text="HOST OR IP" Style="{StaticResource Text.Caption}" Margin="0,0,0,6"/>
+                    <TextBox x:Name="HostBox" Text="127.0.0.1"/>
+                    <TextBlock Margin="0,12,0,0" Style="{StaticResource Text.Muted}" TextWrapping="Wrap"
+                               Text="Examples: 192.168.1.1 (router), 1.1.1.1 (Cloudflare DNS), https://example.com"/>
+                </StackPanel>
+            </Border>
+        </DockPanel>
+    </Border>
 </Window>
