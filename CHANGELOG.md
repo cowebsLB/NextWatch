@@ -2,6 +2,30 @@
 
 All notable changes to NextWatch are documented in this file.
 
+## [0.1.5] - 2026-05-15
+
+### Added
+
+- **Logs** tab in the main window: streams Serilog into an in-memory buffer (`InMemoryUiLogSink` / `InMemoryUiLogBuffer`), clear view, copy as TSV, open logs folder
+- HTTP checks: configurable expected status codes via `ExpectedStatuses` (comma-separated codes/ranges); default accept **200–399** when unset; legacy `ExpectedStatusCode` preserved (`HttpExpectedStatuses`)
+- Discovery: **Scan** with empty CIDR probes **all connected IPv4 subnets** reported by the OS (Ethernet, Wi‑Fi, VPN); manual CIDR still supported (`DiscoveryService.GetConnectedIpv4Networks`, `ScanConnectedNetworksAsync`)
+- Alert helpers `AlertIncidentTriggers`, `AlertRepeatSchedule`; unit tests for transitions and repeat timing
+
+### Changed
+
+- Serilog: `MinimumLevel.Debug` with overrides so EF Core SQL and `System.Net.Http` / `HttpClient` stay at **Warning**; file sink unchanged; UI sink added
+- Check scheduler logs each run at Information (target, status, latency, message)
+- Ping OK messages distinguish **ICMP RTT** vs **check duration**
+- `AppSettings` reads use `OrderBy(Id).FirstAsync` for a stable single row
+
+### Fixed
+
+- **Tray/webhook spam:** incidents fire only on **transition** into DOWN/WARN (or WARN↔DOWN), not every poll while still failing
+- **Repeat reminders:** first repeat waits **RepeatMinutes** after `FiredAtUtc` (no immediate repeat when `RepeatCount` was 0)
+- **Recovery:** returning OK **auto-acks** open `AlertEvent` rows for that check so repeats stop
+- **`ToastEnabled`:** tray balloons honor the alert rule; webhooks unchanged
+- Alert rules: resolve **check-specific** rule before **global** (`ResolveAlertRule`); supersede prior open incidents when opening a new one for the same check
+
 ## [0.1.4] - 2026-05-15
 
 ### Added

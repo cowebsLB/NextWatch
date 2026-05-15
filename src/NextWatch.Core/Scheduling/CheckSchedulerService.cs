@@ -42,7 +42,7 @@ public sealed class CheckSchedulerService(
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<NextWatchDbContext>();
-        var settings = await db.Settings.AsNoTracking().FirstAsync(ct);
+        var settings = await db.Settings.AsNoTracking().OrderBy(s => s.Id).FirstAsync(ct);
         if (settings.MonitoringPaused)
             return;
 
@@ -83,6 +83,7 @@ public sealed class CheckSchedulerService(
             return;
         }
 
+        var previousStatus = check.LastStatus;
         var raw = await executor.ExecuteAsync(check.Target, check, ct);
         var status = ApplyHysteresis(check, raw.Status);
 
@@ -97,7 +98,25 @@ public sealed class CheckSchedulerService(
         db.Results.Add(result);
         check.LastStatus = status;
         ScheduleNext(check, jitter: true);
+
+        if (status == CheckStatus.Ok)
+        {
+            var openForCheck = await db.AlertEvents.Where(e => e.CheckId == check.Id && e.AcknowledgedAtUtc == null)
+                .ToListAsync(ct);
+            foreach (var e in openForCheck)
+                e.AcknowledgedAtUtc = DateTime.UtcNow;
+        }
+
         await db.SaveChangesAsync(ct);
+
+        logger.LogInformation(
+            "Check {CheckType} on target '{TargetName}' ({Host}): {Status} ({LatencyMs:F0} ms) — {Message}",
+            check.Type,
+            check.Target.Name,
+            check.Target.Host,
+            status,
+            raw.LatencyMs,
+            raw.Message);
 
         notifier.Publish(new CheckStatusChangedEventArgs
         {
@@ -108,7 +127,8 @@ public sealed class CheckSchedulerService(
             TimestampUtc = result.TimestampUtc
         });
 
-        await alertEngine.ProcessStatusChangeAsync(db, check, status, raw.Message, ct);
+        if (AlertIncidentTriggers.ShouldOpenNewIncident(previousStatus, status))
+            await alertEngine.ProcessStatusChangeAsync(db, check, status, raw.Message, ct);
     }
 
     public static CheckStatus ApplyHysteresis(CheckDefinition check, CheckStatus raw)

@@ -19,7 +19,7 @@ public sealed class LanViewerBackgroundService(
             {
                 using var scope = provider.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<NextWatchDbContext>();
-                var settings = await db.Settings.AsNoTracking().FirstAsync(stoppingToken);
+                var settings = await db.Settings.AsNoTracking().OrderBy(s => s.Id).FirstAsync(stoppingToken);
                 if (settings.LanViewerEnabled)
                 {
                     await host.StartAsync(provider, settings.LanViewerPort, settings.LanSharedSecretHash, stoppingToken);

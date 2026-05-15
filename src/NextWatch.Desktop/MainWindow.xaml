@@ -51,11 +51,31 @@
                     </DataGrid.Columns>
                 </DataGrid>
             </TabItem>
+            <TabItem Header="Logs">
+                <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Clear view" Command="{Binding ClearLogsCommand}" Padding="10,4" Margin="0,0,8,0"/>
+                        <Button Content="Copy all" Command="{Binding CopyLogsToClipboardCommand}" Padding="10,4" Margin="0,0,8,0"/>
+                        <Button Content="Open logs folder" Command="{Binding OpenLogsFolderCommand}" Padding="10,4" Margin="0,0,16,0"/>
+                        <TextBlock Text="{Binding LogFolderPath}" Foreground="#888" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding LogLines}" AutoGenerateColumns="False" IsReadOnly="True"
+                              Background="#1A1D24" Foreground="#E8E8E8" RowBackground="#1A1D24" AlternatingRowBackground="#22262E"
+                              FontFamily="Consolas" FontSize="12">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Time (local)" Binding="{Binding LocalTime}" Width="175"/>
+                            <DataGridTextColumn Header="Lvl" Binding="{Binding Level}" Width="44"/>
+                            <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="220"/>
+                            <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
             <TabItem Header="Discovery">
                 <StackPanel Margin="12">
-                    <TextBlock Text="Subnet scan (convenience — no history saved)" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/>
+                    <TextBlock Text="Subnet scan pings hosts that reply to ICMP on IPv4. Leave CIDR empty to scan every connected subnet (Wi‑Fi, Ethernet, VPN); or enter e.g. 10.0.0.0/24. Only reachable addresses are listed—many devices block pings." Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/>
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <TextBox Width="200" Text="{Binding DiscoveryCidr, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBox Width="220" ToolTip="Leave blank for all connected IPv4 interfaces" Text="{Binding DiscoveryCidr, UpdateSourceTrigger=PropertyChanged}"/>
                         <Button Content="Scan" Margin="8,0,0,0" Command="{Binding RunDiscoveryCommand}" Padding="12,4"/>
                     </StackPanel>
                 </StackPanel>

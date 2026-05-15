@@ -37,7 +37,7 @@ All monitoring logic lives in **Core**. Desktop and LanViewer are thin hosts.
 4. Applies **hysteresis** (`ApplyHysteresis`) before persisting status.
 5. Writes `CheckResult`, updates `CheckDefinition.LastStatus`.
 6. Publishes `ICheckStatusNotifier.StatusChanged` for WPF.
-7. Invokes `IAlertEngine.ProcessStatusChangeAsync` on DOWN/WARN.
+7. On **transition** into DOWN/WARN (or WARN↔DOWN), invokes `ProcessStatusChangeAsync`; when status returns **OK**, open `AlertEvent` rows for that check are acknowledged automatically.
 
 `RetentionService` prunes results older than `AppSettings.RetentionDays` (default 30).
 
@@ -61,13 +61,13 @@ Parameters are JSON in `CheckDefinition.ParametersJson` (see `CheckParameters` D
 
 `AlertEngine`:
 
-- `ProcessStatusChangeAsync` — new DOWN/WARN, creates `AlertEvent`, notifies sink.
-- `ProcessRepeatsAsync` — escalates open incidents.
+- `ProcessStatusChangeAsync` — transition into DOWN/WARN; supersedes prior open incidents for the same check; creates `AlertEvent`; notifies sink (`ToastEnabled` respected).
+- `ProcessRepeatsAsync` — repeats for still-open incidents on the `RepeatMinutes` cadence (first repeat after **RepeatMinutes** from `FiredAtUtc`, then every **RepeatMinutes**).
 - `ResolveWebhookUrl(rule, settings)` — shared webhook resolution:
   - `null` if `WebhookEnabled` is false or rule is null
   - `rule.WebhookUrl ?? settings.DefaultWebhookUrl` when enabled
 
-`WpfAlertSink` (Desktop): tray balloon + delegates webhook POST to `WebhookAlertSink`.
+`WpfAlertSink` (Desktop): tray balloon when `ToastEnabled` + delegates webhook POST to `WebhookAlertSink`.
 
 ## Live UI updates
 

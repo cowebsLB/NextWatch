@@ -29,7 +29,7 @@ public sealed class DatabaseInitializer(
         await db.Database.MigrateAsync(cancellationToken);
         logger.LogInformation("Database migrated");
 
-        var settings = await db.Settings.FirstAsync(cancellationToken);
+        var settings = await db.Settings.OrderBy(s => s.Id).FirstAsync(cancellationToken);
         settings.PortableDataPath = runtime.PortableDataPath;
         settings.PortableDataDirectory = runtime.PortableDataDirectory;
         await db.SaveChangesAsync(cancellationToken);

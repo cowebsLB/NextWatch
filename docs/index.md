@@ -54,7 +54,7 @@ Portable flags are applied at startup and saved to `AppSettings` so Settings and
 | Type | What it does |
 |------|----------------|
 | Ping | ICMP latency and reachability |
-| HTTP/HTTPS | Status code, optional keyword |
+| HTTP/HTTPS | Status code (default **200–399**), optional `ExpectedStatuses` override (e.g. `401`, `200,204`, `301-302`), optional keyword match |
 | TCP | Port open/closed |
 | SSL | Certificate expiry warning |
 | SNMP (v2c) | Device reachability via `sysUpTime` |
@@ -63,11 +63,19 @@ Portable flags are applied at startup and saved to `AppSettings` so Settings and
 
 SNMP v3 is planned after v2c is stable.
 
+For **HTTP** checks, parameters JSON includes `Url`, optional `Keyword`, optional `ExpectedStatuses` (comma-separated codes or ranges, e.g. `401`, `200,204`, `301-302`), and legacy optional `ExpectedStatusCode` (exact match when `ExpectedStatuses` is omitted). If neither expected field is in JSON, any status **200–399** is OK (redirects succeed); **401** stays DOWN unless you set `ExpectedStatuses` (e.g. `"401"`) to accept it.
+
+## Discovery (subnet scan)
+
+Discovery pings IPv4 addresses to find **ICMP‑responsive** hosts—many phones and PCs block pings, so “missing” devices are normal. Leave the CIDR box **empty** and choose **Scan** to probe **every connected IPv4 subnet** the OS reports (Ethernet, Wi‑Fi, VPN, etc.), or enter one network (e.g. `192.168.1.0/24`). Results are not saved as monitored targets until you add them.
+
 ## Alerts
 
-- **Toast** (tray balloon) on DOWN/WARN
+- **Toast** (tray balloon) once when a check **enters** DOWN/WARN or changes between WARN and DOWN—not on every check interval while still failing.
+- When a check returns **OK**, open incidents for that check are **closed automatically** so repeats stop without manual ack (you can still ack from the overview if needed).
+- Per-rule **ToastEnabled** is honored (webhooks can remain enabled without balloon spam).
 - **Webhook** (optional per rule): Slack/Discord-friendly JSON `{ "text": "..." }`
-- **Repeat:** re-notifies on open incidents until acknowledged (interval from rule, default 15 min)
+- **Repeat:** re-notifies on still-open incidents per **RepeatMinutes** (default 15), counting from the original fire time.
 - **Mute:** tray “Mute alerts 1h” or per-target **mute until** datetime
 
 Webhook rules only fire when `WebhookEnabled` is true. The URL uses the rule’s URL, then falls back to the global default in settings — never the default when webhooks are disabled.
@@ -89,6 +97,12 @@ Settings → **Export diagnostics** creates a ZIP of:
 - Log files from the active data directory
 
 Uses **runtime** portable paths (not stale DB flags), so `--portable` exports from `./data/` correctly.
+
+## Live logs (main window)
+
+The **Logs** tab streams recent Serilog output: DB migration/bootstrap, scheduler activity, **every check run** (target, status, latency, message), warnings/errors, etc. **Clear view** empties the on-screen buffer only—rolling files `nextwatch-*.log` under your logs folder are unchanged. **Copy all** copies TSV to the clipboard; **Open logs folder** opens that directory.
+
+EF Core SQL and **HttpClient** request traces stay at **Warning** so normal sessions stay readable (adjust overrides in `DependencyInjection` if you need verbose HTTP/SQL).
 
 ## Trusted-LAN viewer
 

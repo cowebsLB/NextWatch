@@ -15,7 +15,20 @@ public static class CheckParameters
 public sealed class HttpCheckParams
 {
     public string Url { get; set; } = "http://localhost";
-    public int ExpectedStatusCode { get; set; } = 200;
+
+    /// <summary>
+    /// Optional comma-separated rules: exact codes (401), ranges (301-302), combined (200,204,401).
+    /// Valid segments use HTTP codes 100–599. Whitespace is trimmed; invalid segments are ignored.
+    /// If no valid segment exists, behaviour falls back to accepting <c>200–399</c>.
+    /// </summary>
+    public string? ExpectedStatuses { get; set; }
+
+    /// <summary>
+    /// Legacy single expected status when <see cref="ExpectedStatuses"/> is null/empty.
+    /// When null (typical for JSON without this property), defaults to accepting <c>200–399</c>.
+    /// </summary>
+    public int? ExpectedStatusCode { get; set; }
+
     public string? Keyword { get; set; }
     public bool ValidateCertificate { get; set; } = true;
 }

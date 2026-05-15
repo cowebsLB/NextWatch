@@ -11,7 +11,7 @@ public sealed class AlertEngine(IAlertSink sink, ILogger<AlertEngine> logger) : 
 {
     public async Task ProcessStatusChangeAsync(NextWatchDbContext db, CheckDefinition check, CheckStatus status, string message, CancellationToken ct)
     {
-        var settings = await db.Settings.AsNoTracking().FirstAsync(ct);
+        var settings = await db.Settings.AsNoTracking().OrderBy(s => s.Id).FirstAsync(ct);
         if (IsMuted(settings))
         {
             logger.LogDebug("Skipping alert: muted");
@@ -25,8 +25,13 @@ public sealed class AlertEngine(IAlertSink sink, ILogger<AlertEngine> logger) : 
         }
 
         var rules = await db.AlertRules.Where(r => r.CheckId == check.Id || r.CheckId == null).ToListAsync(ct);
-        var rule = rules.FirstOrDefault() ?? new AlertRule();
+        var rule = ResolveAlertRule(rules, check.Id);
         var target = await db.Targets.AsNoTracking().FirstAsync(t => t.Id == check.TargetId, ct);
+
+        var supersedeUtc = DateTime.UtcNow;
+        foreach (var prior in await db.AlertEvents.Where(e => e.CheckId == check.Id && e.AcknowledgedAtUtc == null)
+                     .ToListAsync(ct))
+            prior.AcknowledgedAtUtc = supersedeUtc;
 
         var evt = new AlertEvent
         {
@@ -42,6 +47,7 @@ public sealed class AlertEngine(IAlertSink sink, ILogger<AlertEngine> logger) : 
         {
             Title = $"NextWatch: {target.Name} is {status}",
             Body = message,
+            ToastEnabled = rule.ToastEnabled,
             PlaySound = rule.SoundEnabled,
             WebhookUrl = ResolveWebhookUrl(rule, settings)
         }, ct);
@@ -49,24 +55,25 @@ public sealed class AlertEngine(IAlertSink sink, ILogger<AlertEngine> logger) : 
 
     public async Task ProcessRepeatsAsync(NextWatchDbContext db, CancellationToken ct)
     {
-        var settings = await db.Settings.AsNoTracking().FirstAsync(ct);
+        var settings = await db.Settings.AsNoTracking().OrderBy(s => s.Id).FirstAsync(ct);
         if (IsMuted(settings))
         {
             logger.LogDebug("Skipping repeat alerts: muted");
             return;
         }
 
-        var cutoff = DateTime.UtcNow;
+        var nowUtc = DateTime.UtcNow;
         var open = await db.AlertEvents
             .Where(e => e.AcknowledgedAtUtc == null)
             .ToListAsync(ct);
 
+        var allRules = await db.AlertRules.ToListAsync(ct);
+
         foreach (var evt in open)
         {
-            var rule = await db.AlertRules.FirstOrDefaultAsync(r => r.CheckId == evt.CheckId, ct);
-            var repeatMin = rule?.RepeatMinutes ?? 15;
-            var lastRepeat = evt.FiredAtUtc.AddMinutes(repeatMin * evt.RepeatCount);
-            if (lastRepeat > cutoff)
+            var rule = ResolveAlertRule(allRules, evt.CheckId);
+            var repeatMin = rule.RepeatMinutes;
+            if (!AlertRepeatSchedule.IsRepeatDue(evt.FiredAtUtc, repeatMin, evt.RepeatCount, nowUtc))
                 continue;
 
             evt.RepeatCount++;
@@ -75,13 +82,19 @@ public sealed class AlertEngine(IAlertSink sink, ILogger<AlertEngine> logger) : 
             {
                 Title = $"NextWatch: {check.Target!.Name} still {evt.Status}",
                 Body = evt.Message,
-                PlaySound = rule?.SoundEnabled ?? false,
+                ToastEnabled = rule.ToastEnabled,
+                PlaySound = rule.SoundEnabled,
                 WebhookUrl = ResolveWebhookUrl(rule, settings)
             }, ct);
         }
 
         await db.SaveChangesAsync(ct);
     }
+
+    private static AlertRule ResolveAlertRule(IReadOnlyList<AlertRule> rules, Guid checkId) =>
+        rules.FirstOrDefault(r => r.CheckId == checkId)
+        ?? rules.FirstOrDefault(r => r.CheckId == null)
+        ?? new AlertRule();
 
     internal static string? ResolveWebhookUrl(AlertRule? rule, AppSettings settings) =>
         rule is { WebhookEnabled: true } ? rule.WebhookUrl ?? settings.DefaultWebhookUrl : null;

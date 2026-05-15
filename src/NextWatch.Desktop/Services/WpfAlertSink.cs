@@ -6,7 +6,8 @@ public sealed class WpfAlertSink(WebhookAlertSink webhook, TrayIconService tray)
 {
     public async Task NotifyAsync(AlertNotification notification, CancellationToken ct)
     {
-        tray.ShowBalloon(notification.Title, notification.Body);
+        if (notification.ToastEnabled)
+            tray.ShowBalloon(notification.Title, notification.Body);
         await webhook.NotifyAsync(notification, ct);
     }
 }

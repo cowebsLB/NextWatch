@@ -29,7 +29,7 @@ public sealed class RetentionService(IServiceScopeFactory scopeFactory, ILogger<
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<NextWatchDbContext>();
-        var settings = await db.Settings.AsNoTracking().FirstAsync(ct);
+        var settings = await db.Settings.AsNoTracking().OrderBy(s => s.Id).FirstAsync(ct);
         var cutoff = DateTime.UtcNow.AddDays(-settings.RetentionDays);
         var old = await db.Results.Where(r => r.TimestampUtc < cutoff).ExecuteDeleteAsync(ct);
         if (old > 0)

@@ -26,7 +26,7 @@ public partial class OnboardingWindow : Window
     {
         using var scope = App.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<NextWatch.Core.Data.NextWatchDbContext>();
-        var settings = await db.Settings.FirstAsync();
+        var settings = await db.Settings.OrderBy(s => s.Id).FirstAsync();
         settings.OnboardingCompleted = true;
         await db.SaveChangesAsync();
         DialogResult = true;

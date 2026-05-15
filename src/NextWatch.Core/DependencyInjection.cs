@@ -4,9 +4,11 @@ using NextWatch.Core.Alerts;
 using NextWatch.Core.Checks;
 using NextWatch.Core.Data;
 using NextWatch.Core.Infrastructure;
+using NextWatch.Core.Infrastructure.Logging;
 using NextWatch.Core.Scheduling;
 using NextWatch.Core.Services;
 using Serilog;
+using Serilog.Events;
 
 namespace NextWatch.Core;
 
@@ -21,13 +23,23 @@ public static class DependencyInjection
         };
         services.AddSingleton(runtime);
 
+        var uiLogBuffer = new InMemoryUiLogBuffer();
+        services.AddSingleton(uiLogBuffer);
+
         var dbPath = NextWatchPaths.GetDatabasePath(portable, portablePath);
         var logsPath = NextWatchPaths.GetLogsDirectory(portable, portablePath);
         Directory.CreateDirectory(logsPath);
 
         Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Information()
+            .MinimumLevel.Debug()
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+            .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
+            .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
+            .MinimumLevel.Override("System.Net.Http", LogEventLevel.Warning)
+            .MinimumLevel.Override("System.Net.Http.HttpClient", LogEventLevel.Warning)
             .WriteTo.File(Path.Combine(logsPath, "nextwatch-.log"), rollingInterval: RollingInterval.Day)
+            .WriteTo.Sink(new InMemoryUiLogSink(uiLogBuffer))
             .CreateLogger();
 
         services.AddLogging(b => b.AddSerilog(dispose: true));

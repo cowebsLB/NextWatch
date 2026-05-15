@@ -1,6 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Text;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +13,8 @@ using NextWatch.Core.Checks;
 using NextWatch.Core.Data;
 using NextWatch.Core.Domain;
 using NextWatch.Core.Domain.Entities;
+using NextWatch.Core.Infrastructure;
+using NextWatch.Core.Infrastructure.Logging;
 using NextWatch.Core.Scheduling;
 using NextWatch.Core.Services;
 
@@ -24,10 +29,14 @@ public partial class MainViewModel : ObservableObject
     private readonly UpdateCheckerService _updateChecker;
     private readonly ReportExportService _reportExport;
     private readonly DiagnosticsExportService _diagnostics;
+    private readonly InMemoryUiLogBuffer _logBuffer;
+    private readonly NextWatchRuntimeOptions _runtime;
+    private bool _logsWired;
 
     public ObservableCollection<TargetRowViewModel> Targets { get; } = [];
     public ObservableCollection<string> Tags { get; } = [];
     public ObservableCollection<AlertEvent> RecentAlerts { get; } = [];
+    public ObservableCollection<UiLogLineVm> LogLines { get; } = [];
 
     [ObservableProperty] private string _filterTag = string.Empty;
     [ObservableProperty] private string _windowTitle = "NextWatch";
@@ -35,10 +44,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _newTargetName = string.Empty;
     [ObservableProperty] private string _newTargetHost = "127.0.0.1";
     [ObservableProperty] private string _newTargetTag = string.Empty;
-    [ObservableProperty] private string _discoveryCidr = "192.168.1.0/24";
+    [ObservableProperty] private string _discoveryCidr = "";
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _lanViewerEnabled;
     [ObservableProperty] private int _lanViewerPort = 5080;
+    [ObservableProperty] private string _logFolderPath = "";
 
     public event Action<string>? TrayStatusChanged;
 
@@ -49,7 +59,9 @@ public partial class MainViewModel : ObservableObject
         DiscoveryService discovery,
         UpdateCheckerService updateChecker,
         ReportExportService reportExport,
-        DiagnosticsExportService diagnostics)
+        DiagnosticsExportService diagnostics,
+        InMemoryUiLogBuffer logBuffer,
+        NextWatchRuntimeOptions runtime)
     {
         _scopeFactory = scopeFactory;
         _notifier = notifier;
@@ -58,11 +70,16 @@ public partial class MainViewModel : ObservableObject
         _updateChecker = updateChecker;
         _reportExport = reportExport;
         _diagnostics = diagnostics;
+        _logBuffer = logBuffer;
+        _runtime = runtime;
         _notifier.StatusChanged += OnStatusChanged;
     }
 
     public async Task InitializeAsync()
     {
+        LogFolderPath = NextWatchPaths.GetLogsDirectory(_runtime.PortableDataPath, _runtime.PortableDataDirectory);
+        EnsureLogsWired();
+
         var v = Assembly.GetExecutingAssembly().GetName().Version;
         WindowTitle = v is null ? "NextWatch" : $"NextWatch {v.Major}.{v.Minor}.{v.Build}";
         await RefreshAsync();
@@ -71,11 +88,33 @@ public partial class MainViewModel : ObservableObject
         LanViewerPort = settings.LanViewerPort;
     }
 
+    private void EnsureLogsWired()
+    {
+        if (_logsWired)
+            return;
+        _logsWired = true;
+
+        foreach (var e in _logBuffer.Snapshot())
+            LogLines.Add(UiLogLineVm.From(e));
+
+        _logBuffer.EntryAppended += entry =>
+        {
+            App.Current.Dispatcher.BeginInvoke(() =>
+            {
+                LogLines.Add(UiLogLineVm.From(entry));
+                while (LogLines.Count > 8000)
+                    LogLines.RemoveAt(0);
+            });
+        };
+
+        _logBuffer.Cleared += () => App.Current.Dispatcher.BeginInvoke(LogLines.Clear);
+    }
+
     public async Task<AppSettings> GetSettingsAsync()
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<NextWatchDbContext>();
-        return await db.Settings.AsNoTracking().FirstAsync();
+        return await db.Settings.AsNoTracking().OrderBy(s => s.Id).FirstAsync();
     }
 
     [RelayCommand]
@@ -161,7 +200,7 @@ public partial class MainViewModel : ObservableObject
         await AddTargetAsync();
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<NextWatchDbContext>();
-        var settings = await db.Settings.FirstAsync();
+        var settings = await db.Settings.OrderBy(s => s.Id).FirstAsync();
         settings.OnboardingCompleted = true;
         await db.SaveChangesAsync();
     }
@@ -171,7 +210,7 @@ public partial class MainViewModel : ObservableObject
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<NextWatchDbContext>();
-        var settings = await db.Settings.FirstAsync();
+        var settings = await db.Settings.OrderBy(s => s.Id).FirstAsync();
         settings.MonitoringPaused = !settings.MonitoringPaused;
         await db.SaveChangesAsync();
         StatusMessage = settings.MonitoringPaused ? "Monitoring paused" : "Monitoring resumed";
@@ -182,7 +221,7 @@ public partial class MainViewModel : ObservableObject
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<NextWatchDbContext>();
-        var settings = await db.Settings.FirstAsync();
+        var settings = await db.Settings.OrderBy(s => s.Id).FirstAsync();
         settings.AlertsMutedUntilUtc = DateTime.UtcNow.Add(duration);
         await db.SaveChangesAsync();
         StatusMessage = $"Alerts muted until {settings.AlertsMutedUntilUtc:u}";
@@ -217,9 +256,19 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task RunDiscoveryAsync()
     {
-        StatusMessage = "Scanning subnet...";
-        var found = await _discovery.ScanSubnetAsync(DiscoveryCidr, 64);
-        StatusMessage = $"Found {found.Count} hosts";
+        IReadOnlyList<DiscoveredHost> found;
+        if (string.IsNullOrWhiteSpace(DiscoveryCidr))
+        {
+            StatusMessage = "Scanning connected IPv4 subnets (Wi‑Fi, Ethernet, VPN)…";
+            found = await _discovery.ScanConnectedNetworksAsync(64);
+            StatusMessage = $"Found {found.Count} reachable host(s) on local IPv4 networks";
+        }
+        else
+        {
+            StatusMessage = "Scanning subnet…";
+            found = await _discovery.ScanSubnetAsync(DiscoveryCidr.Trim(), 64);
+            StatusMessage = $"Found {found.Count} reachable host(s)";
+        }
         if (found.FirstOrDefault() is { } first)
         {
             NewTargetHost = first.Address;
@@ -232,7 +281,7 @@ public partial class MainViewModel : ObservableObject
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<NextWatchDbContext>();
-        var settings = await db.Settings.FirstAsync();
+        var settings = await db.Settings.OrderBy(s => s.Id).FirstAsync();
         settings.LanViewerEnabled = LanViewerEnabled;
         settings.LanViewerPort = LanViewerPort;
         await db.SaveChangesAsync();
@@ -290,6 +339,35 @@ public partial class MainViewModel : ObservableObject
         if (dlg.ShowDialog() != true) return;
         await _diagnostics.ExportZipAsync(dlg.FileName, settings.PortableDataPath, settings.PortableDataDirectory);
         StatusMessage = "Diagnostics exported";
+    }
+
+    [RelayCommand]
+    private void ClearLogs()
+    {
+        _logBuffer.Clear();
+    }
+
+    [RelayCommand]
+    private void CopyLogsToClipboard()
+    {
+        var sb = new StringBuilder(Math.Max(256, LogLines.Count * 64));
+        foreach (var row in LogLines)
+        {
+            sb.Append(row.LocalTime).Append('\t').Append(row.Level).Append('\t').Append(row.Source).Append('\t')
+                .AppendLine(row.Message.Replace('\r', ' ').Replace('\n', ' '));
+        }
+
+        Clipboard.SetText(sb.ToString());
+        StatusMessage = $"Copied {LogLines.Count} log lines";
+    }
+
+    [RelayCommand]
+    private void OpenLogsFolder()
+    {
+        if (Directory.Exists(LogFolderPath))
+            Process.Start(new ProcessStartInfo { FileName = LogFolderPath, UseShellExecute = true });
+        else
+            StatusMessage = "Logs folder not found";
     }
 
     private async void OnStatusChanged(object? sender, CheckStatusChangedEventArgs e) =>
