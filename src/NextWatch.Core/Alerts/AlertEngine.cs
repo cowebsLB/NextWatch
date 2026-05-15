@@ -37,7 +37,7 @@ public sealed class AlertEngine(IAlertSink sink, ILogger<AlertEngine> logger) : 
             Title = $"NextWatch: {target.Name} is {status}",
             Body = message,
             PlaySound = rule.SoundEnabled,
-            WebhookUrl = rule.WebhookEnabled ? rule.WebhookUrl ?? settings.DefaultWebhookUrl : null
+            WebhookUrl = ResolveWebhookUrl(rule, settings)
         }, ct);
     }
 
@@ -67,12 +67,15 @@ public sealed class AlertEngine(IAlertSink sink, ILogger<AlertEngine> logger) : 
                 Title = $"NextWatch: {check.Target!.Name} still {evt.Status}",
                 Body = evt.Message,
                 PlaySound = rule?.SoundEnabled ?? false,
-                WebhookUrl = rule?.WebhookEnabled == true ? rule.WebhookUrl : settings.DefaultWebhookUrl
+                WebhookUrl = ResolveWebhookUrl(rule, settings)
             }, ct);
         }
 
         await db.SaveChangesAsync(ct);
     }
+
+    internal static string? ResolveWebhookUrl(AlertRule? rule, AppSettings settings) =>
+        rule is { WebhookEnabled: true } ? rule.WebhookUrl ?? settings.DefaultWebhookUrl : null;
 
     private static bool IsMuted(AppSettings settings) =>
         settings.AlertsMutedUntilRestart ||

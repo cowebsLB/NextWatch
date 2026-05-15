@@ -3,8 +3,11 @@ using NextWatch.Core.Infrastructure;
 
 namespace NextWatch.Core.Services;
 
-public sealed class DiagnosticsExportService
+public sealed class DiagnosticsExportService(NextWatchRuntimeOptions runtime)
 {
+    public Task ExportZipAsync(string outputPath, CancellationToken ct = default) =>
+        ExportZipAsync(outputPath, runtime.PortableDataPath, runtime.PortableDataDirectory, ct);
+
     public async Task ExportZipAsync(string outputPath, bool portable, string? portablePath, CancellationToken ct = default)
     {
         var dataDir = NextWatchPaths.GetDataDirectory(portable, portablePath);

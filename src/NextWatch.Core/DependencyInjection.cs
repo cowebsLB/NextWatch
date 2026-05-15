@@ -14,6 +14,13 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddNextWatchCore(this IServiceCollection services, bool portable, string? portablePath, Action<IServiceCollection>? configureAlerts = null)
     {
+        var runtime = new NextWatchRuntimeOptions
+        {
+            PortableDataPath = portable,
+            PortableDataDirectory = portablePath
+        };
+        services.AddSingleton(runtime);
+
         var dbPath = NextWatchPaths.GetDatabasePath(portable, portablePath);
         var logsPath = NextWatchPaths.GetLogsDirectory(portable, portablePath);
         Directory.CreateDirectory(logsPath);
